@@ -1,0 +1,23 @@
+{
+    "sources": [
+        {
+            "id": "source_one",
+            "source": "https://github.com/user/rules_repo.git",
+            "authentication": "GH_TOKEN",
+            "version": "1.0.0"
+        },
+        {
+            "id": "source_two",
+            "source": "home/sample/rules"
+        }
+    ],
+    "flows": [
+        {
+            "id": "financedata",
+            "description": "finance team flow for discount purposes",
+            "input": "data-raw/finance.csv.gz",
+            "rules": ["student_discount", "age_discount", "other_discount"],
+            "output": "data/finance.csv"
+        }
+    ]
+}

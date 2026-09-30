@@ -1,0 +1,45 @@
+{
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Request",
+      "type": "inputNode"
+    },
+    {
+      "id": "expr",
+      "name": "finance_metrics",
+      "type": "expressionNode",
+      "content": {
+        "expressions": [
+          {
+            "id": "e1",
+            "key": "disposable_income_usd",
+            "value": "monthly_income_usd - monthly_expenses_usd"
+          },
+          {
+            "id": "e2",
+            "key": "is_high_credit",
+            "value": "credit_score >= 700"
+          }
+        ]
+      }
+    },
+    {
+      "id": "output",
+      "name": "Response",
+      "type": "outputNode"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "input",
+      "targetId": "expr"
+    },
+    {
+      "id": "e2",
+      "sourceId": "expr",
+      "targetId": "output"
+    }
+  ]
+}

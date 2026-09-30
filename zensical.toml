@@ -1,0 +1,17 @@
+[project]
+site_name = "zendt"
+site_description = "Apply GoRules JDM business rules to data tables from the terminal."
+
+nav = [
+  { "Overview" = "index.md" },
+  { "Install" = "install.md" },
+  { "Commands" = "cli.md" },
+  { "Configuration" = "configuration.md" },
+  { "Rules" = "rules.md" },
+  { "Input and output" = "input-output.md" },
+  { "Evaluation" = "evaluation.md" },
+  { "Recommendations" = "recommendations.md" },
+  { "Other Usage: Python Import" = "python-import.md" }
+]
+
+
