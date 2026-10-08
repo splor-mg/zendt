@@ -3,6 +3,9 @@
 A path reads csv, csv.gz, xlsx, or json. No path reads stdin: `[` or `{` is
 json, anything else is csv. Empty stdin, or a terminal with no pipe, is an
 error. JSON is an array of objects, or one object as a single row.
+
+Columns use nullable dtypes, so a blank cell does not turn integers into
+floats.
 """
 
 import gzip
@@ -42,7 +45,7 @@ def read_table(path: str) -> pd.DataFrame:
                 text_sample(location, compressed=True),
                 compressed=True,
             )
-        return remember(pd.read_excel(location), ',')
+        return remember(pd.read_excel(location, dtype_backend='numpy_nullable'), ',')
     except InputError:
         raise
     except (
@@ -69,7 +72,9 @@ def read_stdin() -> pd.DataFrame:
             raise InputError('Stdin JSON is invalid.') from exc
     try:
         delimiter = detect_delimiter(data)
-        frame = pd.read_csv(io.StringIO(data), sep=delimiter)
+        frame = pd.read_csv(
+            io.StringIO(data), sep=delimiter, dtype_backend='numpy_nullable'
+        )
         return remember(frame, delimiter)
     except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
         raise InputError('Stdin is neither json nor csv.') from exc
@@ -78,7 +83,10 @@ def read_stdin() -> pd.DataFrame:
 def read_csv(path: str, sample: str, compressed: bool = False) -> pd.DataFrame:
     delimiter = detect_delimiter(sample)
     frame = pd.read_csv(
-        path, sep=delimiter, compression='gzip' if compressed else None
+        path,
+        sep=delimiter,
+        compression='gzip' if compressed else None,
+        dtype_backend='numpy_nullable',
     )
     return remember(frame, delimiter)
 
@@ -96,7 +104,13 @@ def text_sample(path: str, compressed: bool = False) -> str:
 
 def frame_from_json(data: object) -> pd.DataFrame:
     if isinstance(data, dict):
-        return pd.DataFrame([data])
-    if isinstance(data, list) and all(isinstance(item, dict) for item in data):
-        return pd.DataFrame(data)
-    raise InputError('JSON input must be an object or an array of objects.')
+        frame = pd.DataFrame([data])
+    elif isinstance(data, list) and all(
+        isinstance(item, dict) for item in data
+    ):
+        frame = pd.DataFrame(data)
+    else:
+        raise InputError(
+            'JSON input must be an object or an array of objects.'
+        )
+    return frame.convert_dtypes(dtype_backend='numpy_nullable')

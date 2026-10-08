@@ -41,6 +41,34 @@ def test_resolve_input_reads_semicolon_csv(tmp_path: Path):
     assert frame.attrs['delimiter'] == ';'
 
 
+def test_csv_blank_keeps_the_integer_column(tmp_path: Path):
+    path = tmp_path / 'rows.csv'
+    path.write_text('amount,rate\n10,1.5\n,2.5\n', encoding='utf-8')
+
+    frame = resolve_input(str(path))
+
+    assert str(frame['amount'].dtype) == 'Int64'
+    assert frame['amount'].tolist() == [10, pd.NA]
+    assert str(frame['rate'].dtype) == 'Float64'
+
+
+def test_json_null_keeps_the_integer_column(tmp_path: Path):
+    path = tmp_path / 'rows.json'
+    path.write_text(
+        json.dumps([
+            {'amount': 1, 'rate': 1.5},
+            {'amount': None, 'rate': 2.5},
+        ]),
+        encoding='utf-8',
+    )
+
+    frame = resolve_input(str(path))
+
+    assert str(frame['amount'].dtype) == 'Int64'
+    assert frame['amount'].tolist() == [1, pd.NA]
+    assert str(frame['rate'].dtype) == 'Float64'
+
+
 def test_resolve_input_reads_csv_gz(tmp_path: Path):
     path = tmp_path / 'rows.csv.gz'
     with gzip.open(path, 'wt', encoding='utf-8') as handle:
@@ -72,6 +100,18 @@ def test_resolve_input_reads_excel(tmp_path: Path):
     assert frame['amount'].tolist() == [3]
 
 
+def test_excel_blank_keeps_the_integer_column(tmp_path: Path):
+    path = tmp_path / 'rows.xlsx'
+    pd.DataFrame({'amount': [3, None], 'code': ['a', 'b']}).to_excel(
+        path, index=False
+    )
+
+    frame = resolve_input(str(path))
+
+    assert str(frame['amount'].dtype) == 'Int64'
+    assert frame['amount'].tolist() == [3, pd.NA]
+
+
 def test_resolve_input_rejects_unknown_format(tmp_path: Path):
     path = tmp_path / 'rows.txt'
     path.write_text('amount\n1\n', encoding='utf-8')
@@ -96,6 +136,15 @@ def test_stdin_csv_and_json(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr('sys.stdin', Stdin('[{"amount": 7}]'))
     assert resolve_input(None)['amount'].tolist() == [7]
+
+
+def test_stdin_blank_keeps_the_integer_column(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr('sys.stdin', Stdin('amount,code\n4,a\n,b\n'))
+
+    frame = resolve_input(None)
+
+    assert str(frame['amount'].dtype) == 'Int64'
+    assert frame['amount'].tolist() == [4, pd.NA]
 
 
 def test_stdin_invalid_json(monkeypatch: pytest.MonkeyPatch):

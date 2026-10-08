@@ -198,6 +198,18 @@ def test_resolve_n_jobs_never_exceeds_the_machine(monkeypatch):
     assert evaluate.resolve_n_jobs(evaluate.PARALLEL_MIN_ROWS) == 1
 
 
+def test_parallel_evaluation_keeps_nullable_integers(monkeypatch):
+    monkeypatch.setattr(evaluate, 'resolve_n_jobs', lambda n_rows: 2)
+    frame = pd.DataFrame({'amount': pd.Series([1, 2, 3, 4], dtype='Int64')})
+    result = evaluate.evaluate_input(
+        frame,
+        [entry('flag')],
+        {'rules': {'flag': score_graph('scored')}},
+    )
+    assert result['scored'].tolist() == [2, 3, 4, 5]
+    evaluate.close_pool()
+
+
 def test_parallel_evaluation_keeps_row_order(monkeypatch):
     monkeypatch.setattr(evaluate, 'resolve_n_jobs', lambda n_rows: 2)
     frame = pd.DataFrame({'amount': [1, 2, 3, 4]})

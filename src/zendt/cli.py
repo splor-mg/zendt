@@ -4,7 +4,6 @@ from typing import Annotated
 import pandas as pd
 import typer
 
-from zendt import __version__
 from zendt.config.create import create_config
 from zendt.config.edit import edit_config
 from zendt.engine.output import write_output
@@ -90,26 +89,6 @@ def echo_head(frame: pd.DataFrame) -> None:
     Keep it off stdout when that stream carries the csv.
     """
     typer.echo(frame.head(), err=not sys.stdout.isatty())
-
-
-def version(value: bool) -> None:
-    if value:
-        typer.echo(f'zendt {__version__}')
-        raise typer.Exit()
-
-
-@app.callback()
-def main(
-    version: bool = typer.Option(
-        False,
-        '--version',
-        '-V',
-        help='Show the version and exit.',
-        callback=version,
-        is_eager=True,
-    ),
-) -> None:
-    """Apply JDM (GoRules) rules to data from the terminal."""
 
 
 @app.command('config')

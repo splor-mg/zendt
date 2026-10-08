@@ -12,7 +12,7 @@ zendt apply student_discount -s ./rules -i customers.csv -o customers-out.csv
 
 The command keeps every input column and appends the columns each rule creates. Each rule sees the original rows, not columns produced by an earlier rule in the same command.
 
-Python 3.13 or newer is required. `zendt -V` prints the installed version.
+Python 3.13 or newer is required.
 
 ## Commands
 
@@ -41,14 +41,13 @@ zendt config --edit
 | --- | --- | --- |
 | `--source` | `-s` | GitHub URL, local file or directory, or a source id from the config. `list` and `apply`. |
 | `--find` | `-f` | On `list`, keep names that contain this text. |
-| `--version` | `-v` | Git tag, branch, or other ref. `list` and `apply`. Not the zendt version. |
+| `--version` | `-v` | Git tag, branch, or other ref. `list` and `apply`. |
 | `--authentication` | `-a` | Name of the environment variable that holds a GitHub token. Not the token. |
 | `--input` | `-i` | Input file. Omitted means stdin. |
 | `--output` | `-o` | Output file. Omitted writes CSV to stdout only when stdout is a pipe or a redirect. |
 | `--printhead` | `-ph` | Print the first five result rows. On `apply` and `flow` this is not help; use `--help`. |
 | `--create` | `-c` | Create `zendt.json`. |
 | `--edit` | `-e` | Edit `zendt.json`. |
-| `--version` | `-V` | Print the zendt version and exit. Root command only. |
 
 ## A local folder of rules
 

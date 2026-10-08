@@ -55,12 +55,6 @@ def test_no_args_shows_help():
     assert 'list' in text
 
 
-def test_version_flag():
-    result = runner.invoke(app, ['-V'])
-    assert result.exit_code == 0
-    assert combined(result).strip() == 'zendt 0.1.0'
-
-
 def test_list_prints_rule_names(tmp_path: Path):
     write_rule(tmp_path, 'is_asps')
     write_rule(tmp_path, 'is_mde', 'other')

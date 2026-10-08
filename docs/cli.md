@@ -1,7 +1,6 @@
 # Commands
 
 ```text
-zendt -V
 zendt config --create
 zendt config --edit
 zendt list -s ./rules
@@ -25,9 +24,6 @@ zendt flow financedata -i customers.csv -o customers-out.csv --printhead
 | `--printhead` | `-ph` | `apply`, `flow` | Print the first rows of the result |
 | `--create` | `-c` | `config` | Create `zendt.json` by answering prompts |
 | `--edit` | `-e` | `config` | Edit `zendt.json` by answering prompts |
-| `--version` | `-V` | the root command only | Print the zendt version and exit |
-
-- `-v` and `-V` are different flags. `zendt -V` prints the program version. `zendt apply -v 1.2.1 student_discount` selects a git ref.
 
 - `-ph` on `apply` and `flow` is `--printhead`. Help for those commands is `zendt apply --help` and `zendt flow --help`.
 

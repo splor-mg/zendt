@@ -203,10 +203,9 @@ def eval_chunk(job):
 
     Return only the columns the rule added.
     """
-    key, columns, values, batch_size = job
-    chunk = pd.DataFrame(values, columns=columns)
+    key, chunk, batch_size = job
     out = evaluate_batches(chunk, key, batch_size)
-    payload = {col: out[col].to_numpy(copy=True) for col in out.columns}
+    payload = {col: out[col].copy() for col in out.columns}
     return len(chunk), payload
 
 
@@ -222,14 +221,8 @@ def evaluate_parallel(
         return pd.DataFrame()
     workers = max(1, min(int(n_jobs), n))
     chunk_size = math.ceil(n / workers)
-    columns = list(df.columns)
     jobs = [
-        (
-            key,
-            columns,
-            df.iloc[start : start + chunk_size].to_numpy(copy=True),
-            batch_size,
-        )
+        (key, df.iloc[start : start + chunk_size].copy(), batch_size)
         for start in range(0, n, chunk_size)
     ]
     pool = get_pool(len(jobs), rules_content)
