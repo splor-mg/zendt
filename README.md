@@ -1,7 +1,6 @@
 # zendt [Zen Engine for Data Tables]
 
-![Coverage](coverage.svg)
-
+![Coverage](https://raw.githubusercontent.com/splor-mg/zendt/refs/heads/main/coverage.svg)
 
 Apply [GoRules](https://gorules.io/) business rules to a table from the terminal. Rules are JSON graphs in the [JDM standard](https://docs.gorules.io/developers/jdm/standard). Tables are CSV, gzip-compressed CSV, Excel (`.xlsx`), or JSON.
 
