@@ -1,6 +1,7 @@
 [project]
 site_name = "zendt"
 site_description = "Apply GoRules JDM business rules to data tables from the terminal."
+site_url = "https://splor-mg.github.io/zendt/"
 
 nav = [
   { "Overview" = "index.md" },
