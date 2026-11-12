@@ -1,37 +1,33 @@
 from pathlib import Path
 
-import typer
-
 from zendt.config.helper import save_config
+from zendt.config.ui import ask, ask_confirm, say, title
 from zendt.utils.paths import is_remote
 
 
 def create_source() -> dict:
     """Create a new source."""
-    typer.echo('Enter a unique name for your source (ID):')
-    source_id = typer.prompt('Source ID')
-
-    typer.echo('Enter the source location (local path or git URL):')
-    source_location = typer.prompt('Source location')
+    title('Source')
+    source_id = ask('Enter a unique name for your source (ID)')
+    source_location = ask('Enter the source location (local path or git URL)')
 
     if is_remote(source_location):
-        is_private = typer.confirm('Is this a private repository?')
+        is_private = ask_confirm('Is this a private repository?')
         if is_private:
-            typer.echo(
+            source_authentication = ask(
                 'Enter the name of the environment variable for the '
-                'authentication token [do not enter the token]:'
+                'authentication token [do not enter the token]'
             )
-            source_authentication = typer.prompt('Source Authentication')
         else:
             source_authentication = None
 
-        version = typer.confirm(
+        version = ask_confirm(
             'Would you like to specify a version for this source? '
-            'If no, the ref in the URL is used, or HEAD when the URL has none.'
+            'If no, the ref in the URL is used, or HEAD when the URL '
+            'has none.'
         )
         if version:
-            typer.echo('Enter the source version:')
-            source_version = typer.prompt('Source Version')
+            source_version = ask('Enter the source version')
         else:
             source_version = None
     else:
@@ -56,14 +52,16 @@ def take_source(sources: list[dict], source: dict) -> bool:
     """
     source_id = source.get('id', '')
     if not source_id or '/' in source_id:
-        typer.echo(
+        say(
             "Source id is required and cannot contain '/'. "
-            'Source was not added.'
+            'Source was not added.',
+            kind='error',
         )
         return False
     if any(item.get('id') == source_id for item in sources):
-        typer.echo(
-            f"Source '{source_id}' already exists. Source was not added."
+        say(
+            f"Source '{source_id}' already exists. Source was not added.",
+            kind='error',
         )
         return False
     sources.append(source)
@@ -72,33 +70,32 @@ def take_source(sources: list[dict], source: dict) -> bool:
 
 def create_flow() -> dict:
     """Create a new flow."""
-    flow_id = typer.prompt('Enter a unique name for your flow (ID):')
-    flow_description = typer.prompt('Describe your flow in a few words:')
+    title('Flow')
+    flow_id = ask('Enter a unique name for your flow (ID)')
+    flow_description = ask('Describe your flow in a few words')
 
     flow_rules = [
         rule.strip()
-        for rule in typer.prompt(
-            'Enter the rule(s) for your flow, comma separated:'
+        for rule in ask(
+            'Enter the rule(s) for your flow, comma separated'
         ).split(',')
     ]
 
-    input_file = typer.confirm(
+    input_file = ask_confirm(
         'Would you like to specify a input file for your flow? '
         'Accepted formats: csv, csv.gz, xlsx, json'
     )
     if input_file:
-        flow_input = typer.prompt('Flow Input Path [example: data/input.csv]:')
+        flow_input = ask('Flow Input Path [example: data/input.csv]')
     else:
         flow_input = None
 
-    output_file = typer.confirm(
+    output_file = ask_confirm(
         'Would you like to specify a output file for your flow? '
         'Accepted formats: csv, csv.gz, xlsx, json'
     )
     if output_file:
-        flow_output = typer.prompt(
-            'Flow Output Path [example: data/output.csv]:'
-        )
+        flow_output = ask('Flow Output Path [example: data/output.csv]')
     else:
         flow_output = None
 
@@ -121,14 +118,20 @@ def take_flow(flows: list[dict], flow: dict) -> bool:
     """
     flow_id = flow.get('id', '')
     if not flow_id:
-        typer.echo('Flow id is required. Flow was not added.')
+        say('Flow id is required. Flow was not added.', kind='error')
         return False
     if any(item.get('id') == flow_id for item in flows):
-        typer.echo(f"Flow '{flow_id}' already exists. Flow was not added.")
+        say(
+            f"Flow '{flow_id}' already exists. Flow was not added.",
+            kind='error',
+        )
         return False
     flow['rules'] = [rule for rule in flow.get('rules') or [] if rule]
     if not flow['rules']:
-        typer.echo('A flow needs at least one rule. Flow was not added.')
+        say(
+            'A flow needs at least one rule. Flow was not added.',
+            kind='error',
+        )
         return False
     flows.append(flow)
     return True
@@ -139,11 +142,11 @@ def create_config() -> None:
 
     path = Path.cwd() / 'zendt.json'
     if path.exists():
-        if not typer.confirm(
+        if not ask_confirm(
             f'Config file already exists at {path}. '
             'Would you like to overwrite it?'
         ):
-            typer.echo('Config file not overwritten.')
+            say('Config file not overwritten.')
             return
 
     config = {
@@ -151,16 +154,15 @@ def create_config() -> None:
         'flows': [],
     }
 
-    typer.echo("Let's create the first source...")
     while True:
         if take_source(config['sources'], create_source()):
-            if not typer.confirm('Do you want to add another source?'):
+            if not ask_confirm('Do you want to add another source?'):
                 break
 
-    if typer.confirm('Would you like to create a flow?'):
+    if ask_confirm('Would you like to create a flow?'):
         while True:
             if take_flow(config['flows'], create_flow()):
-                if not typer.confirm('Do you want to add another flow?'):
+                if not ask_confirm('Do you want to add another flow?'):
                     break
 
     save_config(config)

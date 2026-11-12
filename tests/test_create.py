@@ -137,6 +137,45 @@ def test_create_asks_again_for_a_bad_source_id(tmp_path: Path, monkeypatch):
     assert saved['sources'] == [{'id': 'local_rules', 'source': 'home/rules'}]
 
 
+def test_create_prompts_are_spaced_and_have_one_colon(
+    tmp_path: Path, monkeypatch, capsys
+):
+    seen: list[str] = []
+
+    class Recording(Script):
+        def prompt(self, text='', default=None, **kwargs):
+            seen.append(text)
+            return super().prompt(text, default, **kwargs)
+
+        def confirm(self, text='', **kwargs):
+            seen.append(text)
+            return super().confirm(text, **kwargs)
+
+    monkeypatch.chdir(tmp_path)
+    run_create(
+        monkeypatch,
+        Recording(
+            [
+                'remote_rules',
+                'https://github.com/user/repo',
+                'GH_TOKEN',
+                '1.2.1',
+                'score',
+                'remote flow',
+                'flag',
+                'data/in.csv',
+                'data/out.csv',
+            ],
+            [True, True, False, True, True, True, False],
+        ),
+    )
+    assert seen
+    assert all(not item.rstrip().endswith(':') for item in seen)
+    output = capsys.readouterr().out
+    assert '\n--------- Source ---------\n\n' in output
+    assert '\n--------- Flow ---------\n\n' in output
+
+
 def test_create_refuses_to_overwrite(tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     path = tmp_path / 'zendt.json'

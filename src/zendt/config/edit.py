@@ -10,6 +10,7 @@ from zendt.config.create import (
     take_source,
 )
 from zendt.config.helper import save_config
+from zendt.config.ui import ask, ask_confirm, heading, say, title
 from zendt.utils.paths import is_remote
 
 
@@ -17,7 +18,7 @@ def open_config() -> dict | None:
     """Load zendt.json from the current directory."""
     path = Path.cwd() / 'zendt.json'
     if not path.exists():
-        typer.echo(
+        say(
             'Config file not found. Please create it first using '
             "'zendt config --create'."
         )
@@ -25,18 +26,18 @@ def open_config() -> dict | None:
     try:
         config = json.loads(path.read_text(encoding='utf-8'))
     except Exception as exc:
-        typer.echo(f'Error loading config file: {exc}')
+        say(f'Error loading config file: {exc}', kind='error')
         return None
 
     if not isinstance(config, dict) or not isinstance(
         config.get('sources'), list
     ):
-        typer.echo("Config file is missing a 'sources' array.")
+        say("Config file is missing a 'sources' array.", kind='error')
         return None
     if 'flows' not in config:
         config['flows'] = []
     elif not isinstance(config['flows'], list):
-        typer.echo("Config file 'flows' must be an array.")
+        say("Config file 'flows' must be an array.", kind='error')
         return None
     return config
 
@@ -48,11 +49,13 @@ def edit_config() -> None:
         return
 
     while True:
+        title('Edit')
+        typer.echo()
         typer.echo('What would you like to edit?')
         typer.echo('1. Sources')
         typer.echo('2. Flows')
         typer.echo('3. Save and exit')
-        choice = typer.prompt('Enter your choice').strip()
+        choice = ask('Enter your choice').strip()
         if choice == '1':
             edit_sources(config)
         elif choice == '2':
@@ -61,17 +64,14 @@ def edit_config() -> None:
             if save_config(config):
                 return
         else:
-            typer.echo('Invalid choice.')
+            say('Invalid choice.', kind='error')
 
 
 def edit_sources(config: dict) -> None:
     """Create, delete, or edit a source."""
+    title('Sources')
     list_items(config['sources'], 'sources')
-    typer.echo('1. Create')
-    typer.echo('2. Delete')
-    typer.echo('3. Edit')
-    typer.echo('4. Back')
-    choice = typer.prompt('Enter your choice').strip()
+    choice = choose_action()
     if choice == '1':
         add_source(config)
     elif choice == '2':
@@ -81,17 +81,14 @@ def edit_sources(config: dict) -> None:
     elif choice == '4':
         return
     else:
-        typer.echo('Invalid choice.')
+        say('Invalid choice.', kind='error')
 
 
 def edit_flows(config: dict) -> None:
     """Create, delete, or edit a flow."""
+    title('Flows')
     list_items(config['flows'], 'flows')
-    typer.echo('1. Create')
-    typer.echo('2. Delete')
-    typer.echo('3. Edit')
-    typer.echo('4. Back')
-    choice = typer.prompt('Enter your choice').strip()
+    choice = choose_action()
     if choice == '1':
         add_flow(config)
     elif choice == '2':
@@ -101,14 +98,24 @@ def edit_flows(config: dict) -> None:
     elif choice == '4':
         return
     else:
-        typer.echo('Invalid choice.')
+        say('Invalid choice.', kind='error')
+
+
+def choose_action() -> str:
+    """Ask which action to take on the current list."""
+    typer.echo()
+    typer.echo('1. Create')
+    typer.echo('2. Delete')
+    typer.echo('3. Edit')
+    typer.echo('4. Back')
+    return ask('Enter your choice').strip()
 
 
 def list_items(items: list[dict], kind: str) -> None:
     if not items:
-        typer.echo(f'No {kind} yet.')
+        say(f'No {kind} yet.')
         return
-    typer.echo(f'Current {kind}:')
+    heading(f'Current {kind}:')
     for item in items:
         item_id = item.get('id', '?')
         if kind == 'sources':
@@ -136,19 +143,21 @@ def add_flow(config: dict) -> None:
 def delete_by_id(
     items: list[dict], kind: str, *, keep_one: bool = False
 ) -> None:
-    item_id = typer.prompt(f'Enter the {kind} ID').strip()
+    title(f'Delete {kind}')
+    item_id = ask(f'Enter the {kind} ID').strip()
     item = find_by_id(items, item_id)
     if item is None:
-        typer.echo(f'{kind.capitalize()} not found.')
+        say(f'{kind.capitalize()} not found.', kind='error')
         return
     if keep_one and len(items) <= 1:
-        typer.echo(
+        say(
             'At least one source is required. Add another source '
-            'before deleting this one.'
+            'before deleting this one.',
+            kind='error',
         )
         return
-    if not typer.confirm(f"Delete {kind} '{item_id}'?"):
-        typer.echo(f'{kind.capitalize()} was not deleted.')
+    if not ask_confirm(f"Delete {kind} '{item_id}'?"):
+        say(f'{kind.capitalize()} was not deleted.')
         return
     items.remove(item)
 
@@ -162,7 +171,7 @@ def prompt_keep(
     """
     shown = current if current else '(none)'
     hint = "enter to keep, '-' to clear" if allow_clear else 'enter to keep'
-    value = typer.prompt(
+    value = ask(
         f'{label} [{hint}: {shown}]',
         default=current or '',
         show_default=False,
@@ -182,16 +191,20 @@ def set_optional(item: dict, key: str, value: str | None) -> None:
 
 
 def edit_source(config: dict) -> None:
-    source_id = typer.prompt('Enter the source ID').strip()
+    title('Edit source')
+    source_id = ask('Enter the source ID').strip()
     source = find_by_id(config['sources'], source_id)
     if source is None:
-        typer.echo('Source not found.')
+        say('Source not found.', kind='error')
         return
 
-    typer.echo(f'Editing source {source_id}...')
+    heading(f'Editing source {source_id}')
     location = prompt_keep('Source location', source.get('source'))
     if not location:
-        typer.echo('Source location is required. This source was not changed.')
+        say(
+            'Source location is required. This source was not changed.',
+            kind='error',
+        )
         return
     source['source'] = location
 
@@ -200,7 +213,7 @@ def edit_source(config: dict) -> None:
         source.pop('authentication', None)
         source.pop('version', None)
         if had_remote_fields:
-            typer.echo(
+            say(
                 'Authentication and version were removed because '
                 'this source is local.'
             )
@@ -219,13 +232,14 @@ def edit_source(config: dict) -> None:
 
 
 def edit_flow(config: dict) -> None:
-    flow_id = typer.prompt('Enter the flow ID').strip()
+    title('Edit flow')
+    flow_id = ask('Enter the flow ID').strip()
     flow = find_by_id(config['flows'], flow_id)
     if flow is None:
-        typer.echo('Flow not found.')
+        say('Flow not found.', kind='error')
         return
 
-    typer.echo(f'Editing flow {flow_id}...')
+    heading(f'Editing flow {flow_id}')
     description = prompt_keep(
         'Description', flow.get('description'), allow_clear=True
     )
@@ -236,15 +250,14 @@ def edit_flow(config: dict) -> None:
         part.strip() for part in (rules_value or '').split(',') if part.strip()
     ]
     if not rules:
-        typer.echo(
-            'A flow needs at least one rule. This flow was not changed.'
+        say(
+            'A flow needs at least one rule. This flow was not changed.',
+            kind='error',
         )
         return
     set_optional(flow, 'description', description)
     flow['rules'] = rules
-    flow_input = prompt_keep(
-        'Input path', flow.get('input'), allow_clear=True
-    )
+    flow_input = prompt_keep('Input path', flow.get('input'), allow_clear=True)
     flow_output = prompt_keep(
         'Output path', flow.get('output'), allow_clear=True
     )

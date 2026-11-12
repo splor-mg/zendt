@@ -299,6 +299,15 @@ def test_broken_config_file_is_not_rewritten(
     assert path.read_text(encoding='utf-8') == '{'
 
 
+def test_edit_menu_highlights_blocks(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    write_config(tmp_path)
+    run_edit(monkeypatch, Script(['3']))
+    output = capsys.readouterr().out
+    assert '--------- Edit ---------' in output
+    assert '\n\nWhat would you like to edit?' in output
+
+
 def test_missing_config_file(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     edit_config()
