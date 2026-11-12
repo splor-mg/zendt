@@ -1,3 +1,9 @@
+## 0.3.0 (2026-11-12)
+
+### Feat
+
+- add visual layout to config create and edit
+
 ## 0.2.0 (2026-11-12)
 
 ### Feat

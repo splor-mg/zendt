@@ -1,6 +1,6 @@
 [project]
 name = "zendt"
-version = "0.2.0"
+version = "0.3.0"
 license = "MIT"
 description = "CLI for applying business rules built in the GoRules tool model to data tables."
 authors = [
