@@ -1,3 +1,13 @@
+## 0.2.0 (2026-11-12)
+
+### Feat
+
+- include metadata files as ignored jsons
+
+### Fix
+
+- resolve tag with '/' caracter
+
 ## 0.1.2 (2026-11-12)
 
 ### Fix
