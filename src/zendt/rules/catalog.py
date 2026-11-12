@@ -399,6 +399,18 @@ def catalog_github_tree(
     return _GitHubCatalog(info, token, ref, source_prefix).build()
 
 
+def commit_sha(info: dict, token: str | None, ref: str) -> str:
+    """Resolve a ref to one commit SHA.
+
+    A tag or branch such as `relatorios/v0.1.0` cannot sit in a raw
+    URL: the slash is a path separator. The commit lookup percent-encodes
+    that slash, and the SHA is unambiguous afterwards.
+    """
+    catalog = _GitHubCatalog(info, token, ref, '')
+    catalog.resolve_commit()
+    return catalog.commit_sha
+
+
 def catalog_remote(
     url: str, token: str | None, version: str | None
 ) -> dict[str, RuleLocation]:
@@ -406,12 +418,12 @@ def catalog_remote(
     if github:
         path = github.get('path') or ''
         if path.lower().endswith(JSON_SUFFIX):
-            ref = version or github.get('ref') or 'HEAD'
+            ref = str(version or github.get('ref') or 'HEAD')
+            if '/' in ref:
+                ref = commit_sha(github, token, ref)
             name = Path(path).stem
             return {
-                name: RuleLocation(
-                    github_raw_url(github, str(ref), path), name
-                )
+                name: RuleLocation(github_raw_url(github, ref, path), name)
             }
         return catalog_github_tree(github, token, version)
 

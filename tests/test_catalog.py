@@ -197,6 +197,25 @@ def test_catalog_rules_remote_single_json():
     assert rules['flag_rule'].key == 'flag_rule'
 
 
+def test_catalog_rules_single_json_slash_version_uses_commit_sha():
+    with patch(
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response()],
+    ) as get:
+        rules = catalog_rules(
+            'https://github.com/user/repo/blob/main/rules/flag_rule.json',
+            version='relatorios/v0.1.0',
+        )
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/relatorios%2Fv0.1.0',
+    ]
+    assert rules['flag_rule'].origin == (
+        'https://raw.githubusercontent.com/user/repo/'
+        f'{COMMIT_SHA}/rules/flag_rule.json'
+    )
+    assert rules['flag_rule'].key == 'flag_rule'
+
+
 def test_catalog_rules_github_ssh_url_uses_contents_api():
     listing = github_response(
         200,
@@ -244,6 +263,28 @@ def test_catalog_rules_github_version_overrides_the_url_ref():
     ]
     assert get.call_args.kwargs['params'] == {'ref': COMMIT_SHA}
     assert rules['keep'].origin.endswith(f'{COMMIT_SHA}/rules/keep.json')
+
+
+def test_catalog_rules_github_version_with_slash_is_one_ref():
+    listing = github_response(
+        200,
+        [{'type': 'file', 'path': 'rules/keep.json'}],
+    )
+    with patch(
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), listing],
+    ) as get:
+        rules = catalog_rules(
+            'https://github.com/user/repo/tree/main/rules',
+            version='relatorios/v0.1.0',
+        )
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/relatorios%2Fv0.1.0',
+        'https://api.github.com/repos/user/repo/contents/rules',
+    ]
+    assert get.call_args.kwargs['params'] == {'ref': COMMIT_SHA}
+    assert rules['keep'].origin.endswith(f'{COMMIT_SHA}/rules/keep.json')
+    assert 'relatorios' not in rules['keep'].origin
 
 
 def test_catalog_rules_sends_the_bearer_token():
