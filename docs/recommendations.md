@@ -18,7 +18,7 @@ Give each source an id with no `/`. Use a second source id when you need two ref
 
 ## Point GitHub at the rules folder
 
-A repository URL lists every JSON file GitHub returns in one tree. A truncated tree fails. Pass the `tree` URL of the folder that contains the rules, and pass `-v` when you need a ref other than the one in the URL or `HEAD`.
+Pass the `tree` URL of the folder that contains the rules. zendt lists that directory and keeps the ref from the URL, or the ref passed with `-v`. A repository URL walks every directory.
 
 ## Size the machine for the whole table
 

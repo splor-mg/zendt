@@ -5,7 +5,14 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from zendt.errors import AmbiguousRule, AuthError, RuleNotFound, SourceError
+from zendt.errors import (
+    AmbiguousRule,
+    AuthError,
+    RateLimitError,
+    RuleNotFound,
+    SourceError,
+    SourceUnavailable,
+)
 from zendt.models import ResolvedSource
 from zendt.rules.catalog import build_catalog, catalog_rules, resolve_rule
 
@@ -56,48 +63,98 @@ def test_catalog_rules_local_rejects_version(tmp_path: Path):
         catalog_rules(str(tmp_path), version='v1')
 
 
-def test_catalog_rules_github_folder_uses_trees_api():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {
-        'truncated': False,
-        'tree': [
-            {'type': 'blob', 'path': 'is_asps_desp.json'},
-            {'type': 'blob', 'path': 'readme.md'},
-            {'type': 'tree', 'path': 'subdir'},
-            {'type': 'blob', 'path': 'nested/is_mde_desp.json'},
+COMMIT_SHA = 'commit-sha'
+ROOT_TREE_SHA = 'root-tree-sha'
+
+
+def github_response(status: int, payload, *, ok: bool = True) -> Mock:
+    listing = Mock(status_code=status, ok=ok)
+    listing.json.return_value = payload
+    return listing
+
+
+def commit_response() -> Mock:
+    return github_response(
+        200,
+        {
+            'sha': COMMIT_SHA,
+            'commit': {'tree': {'sha': ROOT_TREE_SHA}},
+        },
+    )
+
+
+def test_catalog_rules_github_root_uses_contents_api():
+    root = github_response(
+        200,
+        [
+            {'type': 'file', 'path': 'is_asps_desp.json'},
+            {'type': 'file', 'path': 'readme.md'},
+            {'type': 'file', 'path': 'zendt.json'},
+            {'type': 'dir', 'path': 'nested', 'sha': 'nested-sha'},
         ],
-    }
+    )
+    nested = github_response(
+        200,
+        [{'type': 'file', 'path': 'nested/is_mde_desp.json'}],
+    )
     with patch(
-        'zendt.rules.catalog.requests.get', return_value=listing
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), root, nested],
     ) as get:
         rules = catalog_rules('https://github.com/user/repo')
 
-    assert get.call_count == 1
-    assert '/git/trees/HEAD' in get.call_args.args[0]
-    assert get.call_args.kwargs['params'] == {'recursive': '1'}
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/HEAD',
+        'https://api.github.com/repos/user/repo/contents',
+        'https://api.github.com/repos/user/repo/contents/nested',
+    ]
+    assert get.call_args_list[1].kwargs['params'] == {'ref': COMMIT_SHA}
+    assert get.call_args_list[2].kwargs['params'] == {'ref': COMMIT_SHA}
+    assert set(rules) == {'is_asps_desp', 'is_mde_desp'}
     assert rules['is_asps_desp'].origin == (
-        'https://raw.githubusercontent.com/user/repo/HEAD/is_asps_desp.json'
+        'https://raw.githubusercontent.com/user/repo/'
+        f'{COMMIT_SHA}/is_asps_desp.json'
     )
     assert rules['is_asps_desp'].key == 'is_asps_desp'
     assert rules['is_mde_desp'].origin == (
-        'https://raw.githubusercontent.com/user/repo/HEAD/nested/is_mde_desp.json'
+        'https://raw.githubusercontent.com/user/repo/'
+        f'{COMMIT_SHA}/nested/is_mde_desp.json'
     )
     assert rules['is_mde_desp'].key == 'nested/is_mde_desp'
 
 
-def test_catalog_rules_github_folder_prefix():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {
-        'tree': [
-            {'type': 'blob', 'path': 'rules/keep.json'},
-            {'type': 'blob', 'path': 'other/skip.json'},
-        ]
-    }
-    with patch('zendt.rules.catalog.requests.get', return_value=listing):
+def test_catalog_rules_github_folder_uses_contents_and_ref():
+    folder = github_response(
+        200,
+        [
+            {'type': 'file', 'path': 'rules/keep.json'},
+            {'type': 'dir', 'path': 'rules/nested'},
+        ],
+    )
+    nested = github_response(
+        200,
+        [{'type': 'file', 'path': 'rules/nested/other.json'}],
+    )
+    with patch(
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), folder, nested],
+    ) as get:
         rules = catalog_rules('https://github.com/user/repo/tree/main/rules')
-    assert set(rules) == {'keep'}
-    assert rules['keep'].origin.endswith('main/rules/keep.json')
+
+    assert set(rules) == {'keep', 'other'}
+    assert rules['keep'].origin.endswith(f'{COMMIT_SHA}/rules/keep.json')
     assert rules['keep'].key == 'keep'
+    assert rules['other'].key == 'nested/other'
+    assert rules['other'].origin.endswith(
+        f'{COMMIT_SHA}/rules/nested/other.json'
+    )
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/main',
+        'https://api.github.com/repos/user/repo/contents/rules',
+        'https://api.github.com/repos/user/repo/contents/rules/nested',
+    ]
+    assert get.call_args_list[1].kwargs['params'] == {'ref': COMMIT_SHA}
+    assert get.call_args_list[2].kwargs['params'] == {'ref': COMMIT_SHA}
 
 
 def test_catalog_rules_remote_single_json():
@@ -113,20 +170,25 @@ def test_catalog_rules_remote_single_json():
     assert rules['flag_rule'].key == 'flag_rule'
 
 
-def test_catalog_rules_github_ssh_url_uses_trees_api():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {
-        'truncated': False,
-        'tree': [{'type': 'blob', 'path': 'is_asps_desp.json'}],
-    }
+def test_catalog_rules_github_ssh_url_uses_contents_api():
+    listing = github_response(
+        200,
+        [{'type': 'file', 'path': 'is_asps_desp.json'}],
+    )
     with patch(
-        'zendt.rules.catalog.requests.get', return_value=listing
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), listing],
     ) as get:
         rules = catalog_rules('git@github.com:user/repo.git', version='main')
 
-    assert '/repos/user/repo/git/trees/main' in get.call_args.args[0]
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/main',
+        'https://api.github.com/repos/user/repo/contents',
+    ]
+    assert get.call_args.kwargs['params'] == {'ref': COMMIT_SHA}
     assert rules['is_asps_desp'].origin == (
-        'https://raw.githubusercontent.com/user/repo/main/is_asps_desp.json'
+        'https://raw.githubusercontent.com/user/repo/'
+        f'{COMMIT_SHA}/is_asps_desp.json'
     )
 
 
@@ -138,25 +200,30 @@ def test_catalog_rules_rejects_gitlab():
 
 
 def test_catalog_rules_github_version_overrides_the_url_ref():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {
-        'tree': [{'type': 'blob', 'path': 'rules/keep.json'}]
-    }
+    listing = github_response(
+        200,
+        [{'type': 'file', 'path': 'rules/keep.json'}],
+    )
     with patch(
-        'zendt.rules.catalog.requests.get', return_value=listing
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), listing],
     ) as get:
         rules = catalog_rules(
             'https://github.com/user/repo/tree/main/rules', version='v9'
         )
-    assert '/git/trees/v9' in get.call_args.args[0]
-    assert rules['keep'].origin.endswith('v9/rules/keep.json')
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/v9',
+        'https://api.github.com/repos/user/repo/contents/rules',
+    ]
+    assert get.call_args.kwargs['params'] == {'ref': COMMIT_SHA}
+    assert rules['keep'].origin.endswith(f'{COMMIT_SHA}/rules/keep.json')
 
 
 def test_catalog_rules_sends_the_bearer_token():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {'tree': []}
+    listing = github_response(200, [])
     with patch(
-        'zendt.rules.catalog.requests.get', return_value=listing
+        'zendt.rules.catalog.requests.get',
+        side_effect=[commit_response(), listing],
     ) as get:
         catalog_rules('https://github.com/user/repo', token='secret')
     assert get.call_args.kwargs['headers']['Authorization'] == 'Bearer secret'
@@ -185,11 +252,184 @@ def test_catalog_rules_github_request_failure():
             catalog_rules('https://github.com/user/repo')
 
 
-def test_catalog_rules_rejects_a_truncated_tree():
-    listing = Mock(status_code=200, ok=True)
-    listing.json.return_value = {'truncated': True, 'tree': []}
+def test_catalog_rules_folder_too_large_uses_that_directory_tree():
+    contents = github_response(
+        403,
+        {
+            'message': (
+                'Sorry, this directory is too large for the Contents API. '
+                'Use the Git Trees API instead.'
+            )
+        },
+        ok=False,
+    )
+    root = github_response(
+        200,
+        {
+            'tree': [
+                {'type': 'tree', 'path': 'rules', 'sha': 'rules-sha'},
+            ]
+        },
+    )
+    dcaf = github_response(
+        200,
+        {
+            'tree': [
+                {'type': 'tree', 'path': 'DCAF', 'sha': 'dcaf-sha'},
+            ]
+        },
+    )
+    relatorios = github_response(
+        200,
+        {
+            'tree': [
+                {
+                    'type': 'tree',
+                    'path': 'relatorios',
+                    'sha': 'relatorios-sha',
+                },
+            ]
+        },
+    )
+    folder = github_response(
+        200,
+        {
+            'truncated': False,
+            'tree': [
+                {'type': 'blob', 'path': 'keep.json'},
+                {'type': 'blob', 'path': 'nested/other.json'},
+                {'type': 'blob', 'path': 'notes.md'},
+            ],
+        },
+    )
+    with patch(
+        'zendt.rules.catalog.requests.get',
+        side_effect=[
+            commit_response(),
+            contents,
+            root,
+            dcaf,
+            relatorios,
+            folder,
+        ],
+    ) as get:
+        rules = catalog_rules(
+            'https://github.com/user/repo/tree/main/rules/DCAF/relatorios'
+        )
+
+    assert set(rules) == {'keep', 'other'}
+    assert rules['keep'].key == 'keep'
+    assert rules['other'].key == 'nested/other'
+    assert rules['keep'].origin.endswith(
+        f'{COMMIT_SHA}/rules/DCAF/relatorios/keep.json'
+    )
+    assert rules['other'].origin.endswith(
+        f'{COMMIT_SHA}/rules/DCAF/relatorios/nested/other.json'
+    )
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/main',
+        'https://api.github.com/repos/user/repo/contents/rules/DCAF/relatorios',
+        f'https://api.github.com/repos/user/repo/git/trees/{ROOT_TREE_SHA}',
+        'https://api.github.com/repos/user/repo/git/trees/rules-sha',
+        'https://api.github.com/repos/user/repo/git/trees/dcaf-sha',
+        'https://api.github.com/repos/user/repo/git/trees/relatorios-sha',
+    ]
+    assert get.call_args_list[1].kwargs['params'] == {'ref': COMMIT_SHA}
+    assert get.call_args_list[2].kwargs['params'] is None
+    assert get.call_args.kwargs['params'] == {'recursive': '1'}
+
+
+def test_catalog_rules_truncated_tree_aborts():
+    contents = github_response(
+        403,
+        {'message': 'This directory is too large. Use the Trees API.'},
+        ok=False,
+    )
+    root = github_response(
+        200,
+        {'tree': [{'type': 'tree', 'path': 'rules', 'sha': 'rules-sha'}]},
+    )
+    truncated = github_response(
+        200,
+        {
+            'truncated': True,
+            'tree': [{'type': 'blob', 'path': 'missing.json'}],
+        },
+    )
+    with (
+        patch(
+            'zendt.rules.catalog.requests.get',
+            side_effect=[commit_response(), contents, root, truncated],
+        ) as get,
+        pytest.raises(SourceError, match='exceeds GitHub API limits'),
+    ):
+        catalog_rules('https://github.com/user/repo/tree/v9/rules')
+
+    assert get.call_args.kwargs['params'] == {'recursive': '1'}
+    assert get.call_args.args[0].endswith('/git/trees/rules-sha')
+
+
+def test_catalog_rules_gateway_error_does_not_fall_back_to_trees():
+    contents = github_response(
+        504,
+        {'message': 'Server Error'},
+        ok=False,
+    )
+    with (
+        patch(
+            'zendt.rules.catalog.requests.get',
+            side_effect=[commit_response(), contents],
+        ) as get,
+        pytest.raises(SourceUnavailable, match='HTTP 504'),
+    ):
+        catalog_rules('https://github.com/user/repo')
+
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/HEAD',
+        'https://api.github.com/repos/user/repo/contents',
+    ]
+
+
+def test_catalog_rules_contents_timeout_does_not_fall_back_to_trees():
+    with (
+        patch(
+            'zendt.rules.catalog.requests.get',
+            side_effect=[commit_response(), requests.Timeout('timed out')],
+        ) as get,
+        pytest.raises(SourceUnavailable, match='temporarily unavailable'),
+    ):
+        catalog_rules('https://github.com/user/repo/tree/v1.2.1/rules')
+
+    assert [call.args[0] for call in get.call_args_list] == [
+        'https://api.github.com/repos/user/repo/commits/v1.2.1',
+        'https://api.github.com/repos/user/repo/contents/rules',
+    ]
+
+
+def test_catalog_rules_rate_limit_is_not_an_auth_error():
+    limited = github_response(
+        403,
+        {'message': 'API rate limit exceeded for 1.2.3.4.'},
+        ok=False,
+    )
+    with (
+        patch(
+            'zendt.rules.catalog.requests.get',
+            side_effect=[commit_response(), limited],
+        ),
+        pytest.raises(RateLimitError, match='rate limit exceeded'),
+    ):
+        catalog_rules('https://github.com/user/repo/tree/main/rules')
+
+
+def test_catalog_rules_github_forbidden_without_size_message():
+    listing = github_response(
+        403,
+        {'message': 'Resource not accessible by integration'},
+        ok=False,
+    )
     with patch('zendt.rules.catalog.requests.get', return_value=listing):
-        with pytest.raises(SourceError, match='too large'):
+        with pytest.raises(AuthError):
             catalog_rules('https://github.com/user/repo')
 
 

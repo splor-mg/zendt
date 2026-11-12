@@ -18,6 +18,14 @@ class AuthError(ZendtError):
     type = 'Authentication Error'
 
 
+class RateLimitError(ZendtError):
+    type = 'Rate Limit Exceeded'
+
+
+class SourceUnavailable(ZendtError):
+    type = 'Source Unavailable'
+
+
 class InputError(ZendtError):
     type = 'Input Error'
 
