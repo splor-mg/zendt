@@ -24,6 +24,15 @@ The Zen key is the path of that file relative to the source, without `.json`, us
 - `student_discount` when the source has no id (you passed a URL or a path).
 - `source_one/student_discount` when the source comes from the config and has an id.
 
+## Files that are not rules
+
+A folder source is scanned for `.json` files. Two kinds of file are left out of `list` and `apply`:
+
+- `zendt.json`, the zendt configuration file.
+- Metadata files whose name is exactly `meta.json`, `_meta.json`, `metadata.json`, or `_metadata.json`.
+
+The check uses the file name, so `rules/DCAF/_meta.json` is skipped the same way as `_meta.json` at the root of the source. A rule whose name only contains those words, such as `customer_meta.json`, is still listed.
+
 ## Two sources with the same name
 
 Two different sources might have rules with the same stem (file name). The catalog keeps both. It does not pick a winner.

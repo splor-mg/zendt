@@ -41,6 +41,26 @@ def test_catalog_rules_local_dir(tmp_path: Path):
     assert rules['is_mde_desp'].key == 'is_mde_desp'
 
 
+def test_catalog_rules_skips_metadata_files(tmp_path: Path):
+    write_jdm(tmp_path, 'is_asps_desp')
+    write_jdm(tmp_path, 'customer_meta')
+    for name in (
+        'zendt.json',
+        'meta.json',
+        '_meta.json',
+        'metadata.json',
+        '_metadata.json',
+    ):
+        (tmp_path / name).write_text('{}', encoding='utf-8')
+    nested = tmp_path / 'DCAF'
+    nested.mkdir()
+    write_jdm(nested, 'keep')
+    (nested / '_meta.json').write_text('{}', encoding='utf-8')
+
+    rules = catalog_rules(str(tmp_path))
+    assert set(rules) == {'is_asps_desp', 'customer_meta', 'keep'}
+
+
 def test_catalog_rules_local_single_file(tmp_path: Path):
     file = write_jdm(tmp_path, 'one_rule')
     rules = catalog_rules(str(file))
@@ -90,12 +110,19 @@ def test_catalog_rules_github_root_uses_contents_api():
             {'type': 'file', 'path': 'is_asps_desp.json'},
             {'type': 'file', 'path': 'readme.md'},
             {'type': 'file', 'path': 'zendt.json'},
+            {'type': 'file', 'path': 'meta.json'},
+            {'type': 'file', 'path': '_meta.json'},
+            {'type': 'file', 'path': 'metadata.json'},
+            {'type': 'file', 'path': '_metadata.json'},
             {'type': 'dir', 'path': 'nested', 'sha': 'nested-sha'},
         ],
     )
     nested = github_response(
         200,
-        [{'type': 'file', 'path': 'nested/is_mde_desp.json'}],
+        [
+            {'type': 'file', 'path': 'nested/is_mde_desp.json'},
+            {'type': 'file', 'path': 'nested/_meta.json'},
+        ],
     )
     with patch(
         'zendt.rules.catalog.requests.get',

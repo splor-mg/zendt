@@ -33,6 +33,17 @@ from zendt.utils.paths import is_remote
 
 JSON_SUFFIX = '.json'
 CONFIG_FILENAME = 'zendt.json'
+METADATA_FILENAMES = (
+    'meta.json',
+    '_meta.json',
+    'metadata.json',
+    '_metadata.json',
+)
+
+
+def skipped_json(name: str) -> bool:
+    """Config and metadata files are not rules."""
+    return name == CONFIG_FILENAME or name in METADATA_FILENAMES
 
 
 def zen_key(relative: str) -> str:
@@ -178,7 +189,7 @@ def catalog_local(path: Path) -> dict[str, RuleLocation]:
 
     rules: dict[str, RuleLocation] = {}
     for file in files:
-        if file.name == CONFIG_FILENAME:
+        if skipped_json(file.name):
             continue
         if root is None:
             key = file.stem
@@ -362,7 +373,7 @@ class _GitHubCatalog:
     def add_blob(self, blob_path: str) -> None:
         if not blob_path.lower().endswith(JSON_SUFFIX):
             return
-        if Path(blob_path).name == CONFIG_FILENAME:
+        if skipped_json(Path(blob_path).name):
             return
         if not under_prefix(blob_path, self.source_prefix):
             return

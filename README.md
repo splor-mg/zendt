@@ -57,7 +57,7 @@ zendt apply student_discount -s ./rules -i customers.csv -o customers-out.csv
 
 `student_discount` is the file `rules/student_discount.json`. Nested files are listed by their stem as well. A decision node inside a graph calls another file by its path relative to the folder, without `.json` (`discounts/student_discount`).
 
-`list` prints one name per line. A file named `zendt.json` inside the rules folder is skipped.
+`list` prints one name per line. `zendt.json` and metadata files (`meta.json`, `_meta.json`, `metadata.json`, `_metadata.json`) inside the rules folder are skipped, including in subfolders.
 
 ## GitHub
 

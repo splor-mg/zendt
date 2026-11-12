@@ -115,7 +115,7 @@ Examples:
 - `zendt list -f rules/` will list all the rules that are in the "rules/" source (considering that rules is a valid source_id)
 - `zendt list -f finance` will return a list of all rules that contain the word "finance"
 
-`list` does not read or validate the JSON bodies of the rules. It only fetches the source and lists all JSON files (except for zendt.json). For more information about the rules' content, see the [Rules](rules.md) section.
+`list` does not read or validate the JSON bodies of the rules. It fetches the source and lists JSON files, skipping `zendt.json` and metadata files named `meta.json`, `_meta.json`, `metadata.json`, or `_metadata.json`. Those names are skipped in subfolders as well. For more information about the rules' content, see the [Rules](rules.md) section.
 
 ## `zendt apply`
 
