@@ -30,8 +30,9 @@ A folder source is scanned for `.json` files. Two kinds of file are left out of 
 
 - `zendt.json`, the zendt configuration file.
 - Metadata files whose name is exactly `meta.json`, `_meta.json`, `metadata.json`, or `_metadata.json`.
+- Changelog files whose name is exactly `changelog.json` or `_changelog.json`.
 
-The check uses the file name, so `rules/DCAF/_meta.json` is skipped the same way as `_meta.json` at the root of the source. A rule whose name only contains those words, such as `customer_meta.json`, is still listed.
+The check uses the file name, so `rules/DCAF/_meta.json` and `rules/DCAF/changelog.json` are skipped the same way as those files at the root of the source. A rule whose name only contains those words, such as `customer_meta.json`, is still listed.
 
 ## Two sources with the same name
 

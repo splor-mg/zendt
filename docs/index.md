@@ -14,7 +14,7 @@ The command reads the table, loads only the rules you named (and the decision gr
 
 1. Load `.env` from the current directory, without overriding variables that are already set.
 2. Resolve where the rules live: a `--source` flag, or `zendt.json`, or the `config` / `sources` environment variables.
-3. List the `.json` files in those sources, except `zendt.json` and metadata files (`meta.json`, `_meta.json`, `metadata.json`, `_metadata.json`). This step records names and paths. It does not read the graphs yet.
+3. List the `.json` files in those sources, except `zendt.json`, metadata files (`meta.json`, `_meta.json`, `metadata.json`, `_metadata.json`), and changelog files (`changelog.json`, `_changelog.json`). This step records names and paths. It does not read the graphs yet.
 4. For `apply` and `flow`, read the named rules and every decision-node graph they reach.
 5. Read the input table.
 6. Evaluate each named rule against the original rows and append the new columns.
