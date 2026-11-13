@@ -38,6 +38,8 @@ METADATA_FILENAMES = (
     '_meta.json',
     'metadata.json',
     '_metadata.json',
+    'changelog.json',
+    '_changelog.json',
 )
 
 
