@@ -1,3 +1,10 @@
+## 0.4.0 (2026-11-13)
+
+### Feat
+
+- change behavior - overwrite as default
+- add changelog.json to ignored files list
+
 ## 0.3.0 (2026-11-12)
 
 ### Feat
