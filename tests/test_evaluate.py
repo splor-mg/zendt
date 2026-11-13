@@ -7,6 +7,10 @@ from zendt.models import RuleEntry
 
 
 def score_graph(column: str, expression: str = 'amount + 1') -> dict:
+    return fields_graph({column: expression})
+
+
+def fields_graph(fields: dict[str, str]) -> dict:
     return {
         'nodes': [
             {'id': 'input', 'name': 'Request', 'type': 'inputNode'},
@@ -16,7 +20,8 @@ def score_graph(column: str, expression: str = 'amount + 1') -> dict:
                 'type': 'expressionNode',
                 'content': {
                     'expressions': [
-                        {'id': 'e', 'key': column, 'value': expression}
+                        {'id': f'e{i}', 'key': key, 'value': value}
+                        for i, (key, value) in enumerate(fields.items())
                     ],
                 },
             },
@@ -85,22 +90,45 @@ def test_a_later_rule_reads_the_original_input():
         )
 
 
-def test_repeated_new_columns_are_rejected():
+def test_a_rule_overwrites_columns_already_on_the_input():
+    frame = pd.DataFrame({'amount': [4, 5], 'keep': [1, 1]})
+    result = evaluate.evaluate_input(
+        frame,
+        [entry('flag')],
+        {
+            'rules': {
+                'flag': fields_graph({
+                    'amount': 'amount + 1',
+                    'scored': 'amount + 10',
+                })
+            }
+        },
+    )
+    assert list(result.columns) == ['amount', 'keep', 'scored']
+    assert result['amount'].tolist() == [5, 6]
+    assert result['keep'].tolist() == [1, 1]
+    assert result['scored'].tolist() == [14, 15]
+
+
+def test_a_later_rule_overwrites_columns_from_an_earlier_rule():
     frame = pd.DataFrame({'amount': [1]})
-    with pytest.raises(EngineError, match='repeats columns'):
-        evaluate.evaluate_input(
-            frame,
-            [entry('first'), entry('second')],
-            {
-                'rules': {
-                    'first': score_graph('scored'),
-                    'second': score_graph('scored'),
-                }
-            },
-        )
+    result = evaluate.evaluate_input(
+        frame,
+        [entry('first'), entry('second')],
+        {
+            'rules': {
+                'first': fields_graph({'P': 'amount + 1', 'Q': 'amount + 2'}),
+                'second': fields_graph({'M': 'amount + 3', 'P': 'amount + 4'}),
+            }
+        },
+    )
+    assert list(result.columns) == ['amount', 'P', 'Q', 'M']
+    assert result['P'].tolist() == [5]
+    assert result['Q'].tolist() == [3]
+    assert result['M'].tolist() == [4]
 
 
-def test_columns_already_on_the_input_are_not_appended():
+def test_echoed_input_columns_are_not_duplicated():
     frame = pd.DataFrame({'amount': [4, 5]})
     result = evaluate.evaluate_input(
         frame,
@@ -207,6 +235,28 @@ def test_parallel_evaluation_keeps_nullable_integers(monkeypatch):
         {'rules': {'flag': score_graph('scored')}},
     )
     assert result['scored'].tolist() == [2, 3, 4, 5]
+    evaluate.close_pool()
+
+
+def test_parallel_evaluation_overwrites_repeated_columns(monkeypatch):
+    monkeypatch.setattr(evaluate, 'resolve_n_jobs', lambda n_rows: 2)
+    frame = pd.DataFrame({'amount': [1, 2, 3, 4], 'keep': [9, 9, 9, 9]})
+    result = evaluate.evaluate_input(
+        frame,
+        [entry('flag')],
+        {
+            'rules': {
+                'flag': fields_graph({
+                    'amount': 'amount + 1',
+                    'scored': 'amount + 10',
+                })
+            }
+        },
+    )
+    assert list(result.columns) == ['amount', 'keep', 'scored']
+    assert result['amount'].tolist() == [2, 3, 4, 5]
+    assert result['keep'].tolist() == [9, 9, 9, 9]
+    assert result['scored'].tolist() == [11, 12, 13, 14]
     evaluate.close_pool()
 
 

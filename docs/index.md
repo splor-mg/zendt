@@ -8,7 +8,7 @@ zendt apply student_discount age_discount -s ./rules -i customers.csv -o custome
 zendt flow financedata
 ```
 
-The command reads the table, loads only the rules you named (and the decision graphs those rules call), runs them with the [Zen Engine](https://docs.gorules.io/developers/sdks/python), and writes the original columns plus the columns each rule created.
+The command reads the table, loads only the rules you named (and the decision graphs those rules call), runs them with the [Zen Engine](https://docs.gorules.io/developers/sdks/python), and writes the table with new columns appended and repeated columns overwritten.
 
 ## What a command does
 
@@ -17,7 +17,7 @@ The command reads the table, loads only the rules you named (and the decision gr
 3. List the `.json` files in those sources, except `zendt.json`, metadata files (`meta.json`, `_meta.json`, `metadata.json`, `_metadata.json`), and changelog files (`changelog.json`, `_changelog.json`). This step records names and paths. It does not read the graphs yet.
 4. For `apply` and `flow`, read the named rules and every decision-node graph they reach.
 5. Read the input table.
-6. Evaluate each named rule against the original rows and append the new columns.
+6. Evaluate each named rule against the original rows. Append columns the rule created and overwrite columns it repeats.
 7. Write the result to a file, or to stdout when stdout is a pipe or a redirect.
 
 `list` stops after step 3 and prints the rule names.

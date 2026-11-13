@@ -47,7 +47,7 @@ result = apply(
 
 `input` is a file path, a `DataFrame`, or omitted. A path is read with the same formats as `--input` ([Input and output](input-output.md)). A `DataFrame` is used as it is, with no read from disk. Omitting `input` reads stdin, as the command does when `-i` is absent.
 
-Rules run in the order given. Each rule sees the original input columns, not columns created by an earlier rule. The returned frame is the input table plus the new columns. [Evaluation](evaluation.md) describes batches, extra processes, and what happens when two rules create the same column.
+Rules run in the order given. Each rule sees the original input columns, not columns created by an earlier rule. The returned frame starts as the input table: new columns are appended, and a column the rule repeats is overwritten. When two rules write the same name, the later rule's values remain. [Evaluation](evaluation.md) describes batches, extra processes, and that overwrite.
 
 ## Run a flow
 

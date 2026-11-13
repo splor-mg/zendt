@@ -4,20 +4,20 @@
 
     The current zendt version supports only rules that generate an object result. Graphs that return a scalar or a list fail.
 
-`apply` and `flow` run each named rule on the original rows. The result is the input table with new columns added on the right, one group of columns per rule, in the order the rules were named.
+`apply` and `flow` run each named rule on the original rows. The result starts as the input table. Each rule appends columns that are new and overwrites columns it repeats. New columns from each rule sit to the right of the columns already in the table, in the order the rules were named.
 
 ## What each rule sees
 
 Rule 2 does not see columns created by rule 1. Both rules receive the input table. That is deliberate: the output of one rule is not the input schema of the next. If a later rule needs a column from an earlier rule, that calculation has to live inside one graph, usually through a decision node that calls the other graph. See [Rules](rules.md).
 
-The Zen Engine returns one result object per input row. zendt reads `result` from that object.
+The Zen Engine returns one result object per input row. zendt reads `result` from that object and writes those fields onto the table.
 
-- Fields that already exist on the input table are dropped.
-- Fields that are new are appended.
-- If a rule returns only fields the table already has, it adds no columns. The row count still has to match.
-- If a rule adds a column name that an earlier rule in this command already added, the command stops. The original columns of the table are not considered a repeat, because those fields were dropped before this check.
+- A field whose name is already on the table is overwritten in place. The column keeps its position. This includes columns from the original input and columns an earlier rule in this command already wrote.
+- A field whose name is new is appended on the right, in the order the rule returned it.
+- When more than one rule writes the same name, the last rule's values are kept. Earlier values for that name are discarded. A rule that returns `M` and `P` after an earlier rule already added `P` appends `M` and overwrites `P`.
+- A rule that only repeats names already on the table adds no columns. It still overwrites those cells. The row count has to match.
 
-A graph that echoes its input, including a decision node with `passThrough` that copies input fields next to new ones, therefore keeps the original cells and adds only the new names. zendt does not replace the row with the engine's result object.
+A graph that echoes its input, including a decision node with `passThrough` that copies input fields next to new ones, writes those echoed fields over the current cells and appends only the new names.
 
 ## Failure of one row
 
@@ -54,7 +54,7 @@ On the parallel path the table is split into about one slice per worker. Each wo
 
 The parent keeps the full table. It copies each slice to a worker and receives back only the columns that the rule added, in input order. The pool is reused for the next rule when the worker count is the same and the compiled rule map is the same object. A different worker count closes it and starts another. A failure in a worker closes it. The pool is also closed when the process exits.
 
-The parallel path and the single-process path return the same columns. Parallelism does not change rule order or which fields are kept.
+The parallel path and the single-process path return the same columns. Parallelism does not change rule order, or which value is kept when more than one rule writes the same name. Workers send back every field the rule produced, including names already on the table. The parent process applies the overwrite.
 
 ## Memory
 

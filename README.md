@@ -9,7 +9,7 @@ pip install zendt
 zendt apply student_discount -s ./rules -i customers.csv -o customers-out.csv
 ```
 
-The command keeps every input column and appends the columns each rule creates. Each rule sees the original rows, not columns produced by an earlier rule in the same command.
+The command keeps every input column, appends columns each rule creates, and overwrites a column when a rule returns that name. Each rule sees the original rows, not columns produced by an earlier rule in the same command. When two rules write the same name, the later values remain.
 
 Python 3.13 or newer is required.
 
@@ -140,7 +140,7 @@ zendt does not validate columns. Enforce the shape in the pipeline (before runni
 
 ## How rules are applied
 
-Named rules run in order, each on the original table. New fields are appended. Fields the rule returns that already exist on the input stay as they were. If two rules in one command create the same new column, the command stops. A row the engine rejects stops the command and names the rule and the 1-based row number.
+Named rules run in order, each on the original table. New fields are appended. A field the rule returns that is already on the table is overwritten in place, including a name an earlier rule in the same command already wrote. The last rule to write that name is the one that remains. A row the engine rejects stops the command and names the rule and the 1-based row number.
 
 Decision nodes load the called graph from the same source. The key is the file's path relative to the source, without `.json`. Only those graphs are downloaded and compiled.
 

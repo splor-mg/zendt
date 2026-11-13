@@ -12,6 +12,7 @@ from zendt.utils.paths import is_remote, resolve_path
 
 GITHUB_HOSTS = {'github.com', 'www.github.com'}
 AUTH_FAILURE = {401, 403}
+NOT_FOUND = 404
 _MIN_REPO_PARTS = 2
 _MIN_RAW_PARTS = 3
 _MIN_GIT_REF_PARTS = 2
@@ -25,6 +26,39 @@ def auth_headers(token: str | None) -> dict[str, str]:
     if not token:
         return {}
     return {'Authorization': f'Bearer {token}'}
+
+
+def authentication_message(url: str, status: int, token: str | None) -> str:
+    """Say whether a token was sent and what GitHub did with it."""
+    if token:
+        return (
+            f'Authentication failed for {url} (HTTP {status}). '
+            'The token was sent, but GitHub rejected it or it cannot '
+            'access this repository.'
+        )
+    return (
+        f'Remote source {url} requires authentication (HTTP {status}). '
+        'No token was sent. Pass one with --authentication or the '
+        'source authentication field.'
+    )
+
+
+def hidden_repository_message(url: str, token: str | None) -> str:
+    """GitHub uses HTTP 404 for a private repository the caller cannot see."""
+    if token:
+        return (
+            f'Could not fetch remote source {url}: (HTTP 404). '
+            'GitHub returns 404 when the token cannot access a private '
+            'repository, and also when the repository or ref does not '
+            'exist.'
+        )
+    return (
+        f'Could not fetch remote source {url}: (HTTP 404). '
+        'No token was sent. GitHub returns 404 for a private '
+        'repository in that case, and also when the repository does '
+        'not exist. If it is private, pass a token with '
+        '--authentication or the source authentication field.'
+    )
 
 
 def parse_github(url: str) -> dict | None:
@@ -97,7 +131,11 @@ def find_remote(url: str, auth: str | None = None) -> str:
     except requests.RequestException as exc:
         raise SourceError(f'Could not reach remote source: {exc}') from exc
     if response.status_code in AUTH_FAILURE:
-        raise AuthError('Authentication failed. Token is invalid or expired.')
+        raise AuthError(
+            authentication_message(url, response.status_code, auth)
+        )
+    if response.status_code == NOT_FOUND:
+        raise AuthError(hidden_repository_message(url, auth))
     if not response.ok:
         raise SourceError(
             f'Remote source is not accessible '

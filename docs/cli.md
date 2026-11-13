@@ -129,7 +129,7 @@ The words after `apply` are the rule names, one or more. Each name is either a f
 
 Rules are applied sequentially in the order they are written in the command. Each rule sees the original input columns, not columns created by an earlier rule.
 
-The output table is the input table plus the new columns, in that same order. [Evaluation](evaluation.md) describes what "new" means and what happens when two rules create the same column.
+The output table starts as the input table. Columns the rule returns that are new are appended, in that same order. A column the rule returns that is already on the table is overwritten in place. When a later rule writes a name an earlier rule already wrote, the later values replace the earlier ones. [Evaluation](evaluation.md) describes which columns move and which stay where they are.
 
 See more about `--input` and `--output` in the [Input and output](input-output.md) section.
 

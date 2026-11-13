@@ -145,16 +145,31 @@ def row_result(result, key, row_number):
     return row
 
 
-def added_columns(evaluated, input_columns):
-    """Keep fields the rule created.
+def merge_rule_columns(table, produced):
+    """Overwrite columns this rule repeated and append the rest.
 
-    Columns already in the input stay on the original table.
+    A repeated column stays where it is. The rule's values replace the
+    cells already there, whether those cells came from the input or from
+    an earlier rule. New columns are appended in the order the rule
+    returned them. When several rules write the same name, the last
+    write is the one that remains.
     """
-    present = set(input_columns)
-    keep = [column for column in evaluated.columns if column not in present]
-    if not keep:
-        return pd.DataFrame(index=range(len(evaluated)))
-    return evaluated.loc[:, keep].reset_index(drop=True)
+    if len(produced.columns) == 0:
+        return table
+    fresh = [
+        column
+        for column in produced.columns
+        if column not in table.columns
+    ]
+    for column in produced.columns:
+        if column not in table.columns:
+            continue
+        replacement = produced[column].reset_index(drop=True)
+        replacement.index = table.index
+        table[column] = replacement
+    if not fresh:
+        return table
+    return pd.concat([table, produced.loc[:, fresh]], axis=1)
 
 
 def evaluate_batches(df, key, batch_size=DEFAULT_BATCH_SIZE):
@@ -190,18 +205,16 @@ def evaluate_batches(df, key, batch_size=DEFAULT_BATCH_SIZE):
         )
         del rows, requests, results
 
-    out = (
-        pd.concat(out_chunks, ignore_index=True)
-        if out_chunks
-        else pd.DataFrame()
-    )
-    return added_columns(out, df.columns)
+    if not out_chunks:
+        return pd.DataFrame()
+    return pd.concat(out_chunks, ignore_index=True)
 
 
 def eval_chunk(job):
     """Evaluate one slice in a worker.
 
-    Return only the columns the rule added.
+    Return every column the rule produced, including names already on
+    the input. The parent overwrites those and appends the new ones.
     """
     key, chunk, batch_size = job
     out = evaluate_batches(chunk, key, batch_size)
@@ -214,7 +227,7 @@ def evaluate_parallel(
 ):
     """Split the table across workers.
 
-    Returns the columns the rule added, in input order.
+    Returns every column the rule produced, in input order.
     """
     n = len(df)
     if n == 0:
@@ -250,15 +263,16 @@ def evaluate_parallel(
 def evaluate_input(input_data, entries, loaded_rules):
     """Run each rule on the original rows.
 
-    Append the columns that rule created.
+    Append columns the rule created. Overwrite a column it repeats.
 
     The CLI chooses the worker count. One worker stays in this process, because
     spawning a pool for it costs more than it saves. Each rule sees the input
     table, so a later rule does not read columns produced by an earlier one.
+    A later rule can still replace those columns in the result: the last
+    rule to write a name is the one that remains.
     """
     n_jobs = resolve_n_jobs(len(input_data))
-    pieces = [input_data.reset_index(drop=True)]
-    occupied = set(input_data.columns)
+    table = input_data.reset_index(drop=True).copy()
     active_source = object()
 
     for entry in entries:
@@ -273,27 +287,18 @@ def evaluate_input(input_data, entries, loaded_rules):
             if active_source != entry.source_id:
                 init_engine(rules_content)
                 active_source = entry.source_id
-            added = evaluate_batches(input_data, entry.key)
+            produced = evaluate_batches(input_data, entry.key)
         else:
-            added = evaluate_parallel(
+            produced = evaluate_parallel(
                 input_data, entry.key, n_jobs, rules_content
             )
 
-        if len(added) != len(input_data):
+        if len(produced) != len(input_data):
             raise EngineError(
-                f"Rule '{entry.ref}' returned {len(added)} rows "
+                f"Rule '{entry.ref}' returned {len(produced)} rows "
                 f'for {len(input_data)} input rows.'
             )
-        overlap = [column for column in added.columns if column in occupied]
-        if overlap:
-            names = ', '.join(str(column) for column in overlap)
-            raise EngineError(
-                f"Rule '{entry.ref}' repeats columns already in "
-                f'the table: {names}.'
-            )
-        occupied.update(added.columns)
-        pieces.append(added.reset_index(drop=True))
+        table = merge_rule_columns(table, produced.reset_index(drop=True))
 
-    result = pd.concat(pieces, axis=1)
-    result.attrs['delimiter'] = input_data.attrs.get('delimiter', ',')
-    return result
+    table.attrs['delimiter'] = input_data.attrs.get('delimiter', ',')
+    return table
